@@ -1,72 +1,83 @@
 ;(function($) {
-    Vue.component('wpuf-integration-permission', {
-        template: '#tmpl-wpuf-integration-permission',
-        mixins: [wpuf_mixins.integration_mixin],
-
+    Vue.component('weforms-integration-permission', {
+        props: ['settings'],
+        components: {
+            Multiselect: window.VueMultiselect.default
+        },
         data: function() {
             return {
-                lists: []
+                restrict_mood: false,
+                selected: [],
+                wpUsers: [],
+                isSearching: false
             };
         },
 
-        computed: {
-
-        },
-
         created: function() {
-            // this.fetchLists();
+            if (this.settings.allowed_users) {
+                this.selected = this.settings.allowed_users;
+            }
+
+            if (this.settings.restrict_mood) {
+                this.restrict_mood = this.settings.restrict_mood;
+            }
+
+            this.fetchWPUsers();
         },
 
         methods: {
-
-            fetchLists: function(target) {
+            fetchWPUsers() {
                 var self = this;
 
-                wp.ajax.send('wpuf_aweber_fetch_lists', {
-                    data: {
-                        _wpnonce: weForms.nonce
+                wp.ajax.send('weforms_permission_fetch_users', {
+                    data: {},
+                    success(response) {
+                        self.wpUsers = response;
                     },
-
-                    success: function(response) {
-                        self.lists = response;
-                    },
-
-                    error: function(error) {
-                        alert(error);
+                    error(error) {
+                        console.log('error', error);
                     }
                 });
             },
 
-            updateLists: function(target) {
+            asyncSearchUser: function(query) {
+
+                if ( ! query ) {
+                    return;
+                }
+
                 var self = this;
 
-                var link = $(target).closest('a');
+                this.isSearching = true;
 
-                link.addClass('updating');
-
-                wp.ajax.send('wpuf_aweber_update_lists', {
+                wp.ajax.send('weforms_permission_fetch_users', {
                     data: {
-                        _wpnonce: weForms.nonce
+                        search: query,
                     },
+                    success(response) {
+                        var ids =  _.pluck(self.wpUsers, 'id');
 
-                    success: function(response) {
-                        self.lists = response;
+                        response.forEach( user => {
+                            if ( ! _.contains(ids, user.id) ) {
+                                self.wpUsers.push(user);
+                            }
+                        });
                     },
-
-                    error: function(error) {
-                        alert(error);
+                    error(error) {
+                        console.log('error', error);
                     },
-
-                    complete: function() {
-                        link.removeClass('updating');
+                    complete(){
+                        self.isSearching = false
                     }
                 });
             },
-
-            insertValue: function(type, field, property) {
-                var value = ( field !== undefined ) ? '{' + type + ':' + field + '}' : '{' + type + '}';
-
-                this.settings.fields[property] = value;
+        },
+        watch: {
+            selected: function(value) {
+                this.settings.allowed_users = value;
+            },
+            restrict_mood: function(value) {
+                this.settings.restrict_mood = value;
             }
         }
     });
